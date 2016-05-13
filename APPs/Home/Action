@@ -1,0 +1,778 @@
+<?php
+namespace Home\Action;
+
+use Home\Model\UserAddressModel;
+class DiyAction extends BaseAction {
+	/**
+	 * 商品列表
+	 */
+	public function index(){
+		$styledId = ""; 
+		if(I("styledId") != null && I("styledId") != ""){
+			$this->assign('styledId', I("styledId"));
+			$m = D('Home/Styled');
+			$obj["styledId"] = $styledId;
+			$styledObj = $m->get($obj);
+			$this->assign('styledObj', $styledObj);
+		}
+		
+		$this->assign('tmpno', $this->getRandOnlyId());
+		$picturecats_bll = D('Home/PictureCats');
+		$picturecats_list = $picturecats_bll->queryTopByList();
+		$this->assign('piccatlists', $picturecats_list);
+		
+		
+		
+		
+		
+		$scm = D("Home/StyledComments");
+		$obj["styledId"] = $styledId;
+		$commentlist = $scm->queryTopStyledComment($obj);
+		if($commentlist != null){
+			for($s=0;$s<count($commentlist);$s++){
+				if($commentlist[$s]["pics"]!=""){
+					$commentlist[$s]["piclist"] = explode(",",$commentlist[$s]["pics"]);
+				}
+				
+				$obj["parentid"] = $commentlist[$s]["commentid"];
+				$commentlist[$s]["childrens"] = $scm->queryChildStyledComment($obj);
+			}
+			$this->assign('comments', $commentlist);
+		}
+		
+		$mcats = D("Home/PictureCats");
+		$catlists = $mcats->queryTopByList();
+		$this->assign('catlists',$catlists);
+		
+		$fabric_bll = D("Home/StyledFabric");
+		$fabriclist = $fabric_bll->queryByList();
+		$this->assign('fabriclist',$fabriclist);
+		
+		$types_bll = D("Home/StyledTypes");
+		$typelist = $types_bll->queryByList();
+		$this->assign('typelist',$typelist);
+		
+		$sizes_bll = D("Home/StyledSizes");
+		$sizelist = $sizes_bll->queryByList();
+		$this->assign('sizelist',$sizelist);
+		
+		
+		$this->display("wzyskin/diy");
+	}
+
+	public function shows() {
+		$m = D("Home/StyledShare");
+		$pages = $m->queryByPage();
+   		$this->assign('lists', $pages);
+		$this->display("wzyskin/diy_list");
+	}
+	
+	public function styledpager(){
+		$m = D('Home/Diy');
+		$sqlw = " 1=1 ";
+		if(I("post.catid") != NULL && I("post.catid") != ""){
+			$sqlw = $sqlw . " and catid in (" . I("post.catid") . ") ";
+		}
+		if(I("post.realsex") != NULL && I("post.realsex") != ""){
+			$sqlw = $sqlw . " and realsex=" . I("post.realsex") . " ";
+		}
+		if(I("post.stype") != NULL && I("post.stype") != ""){
+			$sqlw = $sqlw . " and stype=" . I("post.stype") . " ";
+		}
+		if(I("post.stylesize") != NULL && I("post.stylesize") != ""){
+			$sqlw = $sqlw . " and stylesize='" . I("post.stylesize") . "' ";
+		}
+		if(I("post.fabric") != NULL && I("post.fabric") != ""){
+			$sqlw = $sqlw . " and fabric='" . I("post.fabric") . "' ";
+		}
+		if(I("post.price1") != NULL && I("post.price1") != "" && I("post.price2") != NULL && I("post.price2") != ""){
+			$sqlw = $sqlw . " and " . floatval(I("post.price1")) . " <= price <= " . floatval(I("post.price2"));
+		}
+		if(I("post.time1") != NULL && I("post.time1") != "" && I("post.time2") != NULL && I("post.time2") != ""){
+			$sqlw = $sqlw . " and " . intval(I("post.time1")) . " <= postime <= " . intval(I("post.time2"));
+		}
+		$styled_bll = M('Styled');
+		$count = $styled_bll->where($sqlw)->count();
+		$limitRows = 12;
+		$p = new \Org\Util\AjaxPage($count, $limitRows,"getStyledByPage"); 
+		$limit_value = $p->firstRow . "," . $p->listRows;
+		$data = $styled_bll->where($sqlw)->order('postime desc')->limit($limit_value)->select();
+		$page = $p->show();
+		$this->assign('list',$data);
+		$this->assign('page',$page);
+		$this->display("wzyskin/diy/styledpager");
+	}
+	function styledpage(){
+		$m = D('Home/Diy');
+		$sqlw = " 1=1 ";
+		if(I("catid") != NULL && I("catid") != ""){
+			$sqlw = $sqlw . " and catid in (" . I("catid") . ") ";
+		}
+		if(I("realsex") != NULL && I("realsex") != ""){
+			$sqlw = $sqlw . " and realsex=" . I("realsex") . " ";
+		}
+		if(I("stype") != NULL && I("stype") != ""){
+			$sqlw = $sqlw . " and stype=" . I("stype") . " ";
+		}
+		if(I("stylesize") != NULL && I("stylesize") != ""){
+			$sqlw = $sqlw . " and stylesize='" . I("stylesize") . "' ";
+		}
+		if(I("fabric") != NULL && I("fabric") != ""){
+			$sqlw = $sqlw . " and fabric='" . I("fabric") . "' ";
+		}
+		if(I("price1") != NULL && I("price1") != "" && I("price2") != NULL && I("price2") != ""){
+			$sqlw = $sqlw . " and " . floatval(I("price1")) . " <= price <= " . floatval(I("price2"));
+		}
+		if(I("time1") != NULL && I("time1") != "" && I("time2") != NULL && I("time2") != ""){
+			$sqlw = $sqlw . " and " . intval(I("time1")) . " <= postime <= " . intval(I("time2"));
+		}
+		$styled_bll = M('Styled');
+		
+		$page 		= intval(I("page", "0")); //当前页
+		$total_num 	= $styled_bll->where($sqlw)->count();
+		$page_size 	= 12; //每页数量
+		$page_total = ceil($total_num / $page_size); //总页数
+		$page_start = $page * $page_size;
+		$array = array(
+				"total_num" 		=> $total_num,
+				"page_size" 		=> $page_size,
+				"page_total_num" 	=> $page_total,
+				"sql"				=> $styled_bll->getLastSql()
+		);
+		$lists 		= $styled_bll->where($sqlw)->order('postime desc')->limit($page_start . "," . $page_size)->select();
+		$array['list'] 	= $lists;
+		echo json_encode($array);
+	}
+	
+	
+	public function picturepage(){
+		$m = D('Home/Diy');
+		$sqlw = " 1=1 ";
+		$tmp_type = I("type", "public"); //public公共图库,favorite我的收藏,upload我上传的
+		if($tmp_type == "public"){
+			$sqlw = $sqlw . " and grade=1 and status=100 ";
+		}else if($tmp_type == "favorite"){
+			$USER = session('WZY_USER');
+			$userid = (int)$USER['userId'];
+			$sqlw = $sqlw . " and pictureid in (select pictureid from wzy_user_picfav where userid=".$userid." order by postime desc)";
+		}else if($tmp_type == "upload"){
+			$USER = session('WZY_USER');
+			$userid = (int)$USER['userId'];
+			$sqlw = $sqlw . " and ownerid=" . $userid;
+		}
+		if(I("catid") != NULL && I("catid") != "" && I("catid") != "0"){
+			$sqlw = $sqlw . " and catid in (" . I("catid") . ") ";
+		}else{
+			$sqlw = $sqlw . " and catid<>100 ";
+		}
+		if(I("ownerid") != NULL && I("ownerid") != ""){
+			$sqlw = $sqlw . " and ownerid=" . I("ownerid") . " ";
+		}
+		if(I("price1") != NULL && I("price1") != "" && I("price2") != NULL && I("price2") != ""){
+			$sqlw = $sqlw . " and " . floatval(I("price1")) . " <= price <= " . floatval(I("price2"));
+		}
+		if(I("time1") != NULL && I("time1") != "" && I("time2") != NULL && I("time2") != ""){
+			$sqlw = $sqlw . " and " . intval(I("time1")) . " <= postime <= " . intval(I("time2"));
+		}
+		$picture_bll = M('picture');
+		
+		$page 		= intval(I("page", "0")); //当前页
+		$total_num 	= $picture_bll->where($sqlw)->count();
+		$page_size 	= 12; //每页数量
+		$page_total = ceil($total_num/$page_size); //总页数
+		$page_start = $page * $page_size;
+		$array = array(
+			"total_num" 		=> $total_num,
+			"page_size" 		=> $page_size,
+			"page_total_num" 	=> $page_total,
+			"sql"				=> $picture_bll->getLastSql()
+		);
+		$lists 		= $picture_bll->where($sqlw)->order('postime desc')->limit($page_start . "," . $page_size)->select();
+		$array['list'] 	= $lists;
+		echo json_encode($array);
+	}
+	
+	public function getstyledinfo(){
+		$m = D('Home/Diy');
+		$obj = $m->getstyled();
+		$this->ajaxReturn($obj);
+	}
+	public function getpictureinfo(){
+		$m = D('Home/Diy');
+		$obj = $m->getpicture();
+		$this->ajaxReturn($obj);
+	}
+	public function saveuserdiy(){
+		$styledId = I("styledId", "0");
+		if($styledId != "0"){
+			
+			$tmpno 				= I("tmpno", "");
+			$orderId 			= I("orderId", "");
+			$styledPrice 		= I("styledPrice", "");
+			$front 				= I("front", "0");
+			$back 				= I("back", "0");
+			$left 				= I("left", "0");
+			$right 				= I("right", "0");
+			$snapshotpics 		= I("snapshotpics", "");
+			$formtype 			= I("formtype", "graph");
+		}
+		
+	}
+	/**
+	 * 新增/修改评论
+	 */
+	public function newcomment(){
+		$this->isUserAjaxLogin();
+		$USER = session('WZY_USER');
+		$m = D('Home/StyledComments');
+		$rs = array();
+		if((int)I('id', 0)>0){
+			$rs = $m->edit();
+		}else{
+			$obj["styledid"] = I("styledid", "0");
+			$obj["orderid"] = I("orderid", "0");
+			$obj["userid"] = $USER["userId"];
+			$obj["ip"] = $this->getIP();
+			$rs = $m->insert($obj);
+		}
+		$this->ajaxReturn($rs);
+	}
+	
+	
+	public function newuserpicture(){
+		$this->isUserAjaxLogin();
+		$USER = session('WZY_USER');
+		$obj["ownerid"] 	= $USER["userId"];
+		$obj["loginName"] 	= $USER["loginName"];
+		$m 					= D('Home/Picture');
+		$rs 				= array();
+		$rs 				= $m->insert($obj);
+		$this->ajaxReturn($rs);
+	}
+	
+	public function upuserpicture(){
+		$this->isUserAjaxLogin();
+		$USER = session('WZY_USER');
+		$obj["ownerid"] 	= $USER["userId"];
+		$obj["loginName"] 	= $USER["loginName"];
+		$m 					= D('Home/Picture');
+		$rs 				= array();
+		$rs 				= $m->update($obj);
+		$this->ajaxReturn($rs);
+	}
+	public function deluserpicture(){
+		$this->isUserAjaxLogin();
+		$m 					= D('Home/Picture');
+		$rs 				= array();
+		$rs 				= $m->delete();
+		$this->ajaxReturn($rs);
+	}
+	
+	/**
+	 * 获取本地diy使用图片吧的价格
+	 * */
+	public function getusedpictotalamt(){
+		$this->isUserAjaxLogin();
+		$USER = session('WZY_USER');
+		$frontpicid 		= $_GET["front"];
+		$backpicid 			= $_GET["back"];
+		$leftpicid 			= $_GET["left"];
+		$rightpicid 		= $_GET["right"];
+		$tietupicids 		= $_GET["tietupicids"];
+		$obj 				= array();
+		$obj["status"] 	= "1";
+		$obj["total"] 	= "0";
+		if($backgroundpicid == "" && $tietupicids == ""){
+			$obj["status"] 	= "1";
+			$obj["total"] 	= "0";
+		}else{
+			$tmp_total = 0;
+			if($frontpicid != ""){
+				$picinfo = M("Picture")->where("pictureid=".$frontpicid)->find();
+				if($picinfo != null && $picinfo["grade"] == "1"){
+					$tmp_total = $tmp_total + floatval($picinfo["price"]);
+				}
+			}
+			if($backpicid != ""){
+				$picinfo = M("Picture")->where("pictureid=".$backpicid)->find();
+				if($picinfo != null && $picinfo["grade"] == "1"){
+					$tmp_total = $tmp_total + floatval($picinfo["price"]);
+				}
+			}
+			if($leftpicid != ""){
+				$picinfo = M("Picture")->where("pictureid=".$leftpicid)->find();
+				if($picinfo != null && $picinfo["grade"] == "1"){
+					$tmp_total = $tmp_total + floatval($picinfo["price"]);
+				}
+			}
+			if($rightpicid != ""){
+				$picinfo = M("Picture")->where("pictureid=".$rightpicid)->find();
+				if($picinfo != null && $picinfo["grade"] == "1"){
+					$tmp_total = $tmp_total + floatval($picinfo["price"]);
+				}
+			}
+			if($tietupicids != ""){
+				$array_tietupicid = explode(",", $tietupicids);
+				if(count($array_tietupicid) > 0){
+					for ($k=0; $k<count($array_tietupicid); $k++){
+						$picinfo = M("Picture")->where("pictureid=".$array_tietupicid[$k])->find();
+						if($picinfo != null && $picinfo["grade"] == "1"){
+							$tmp_total = $tmp_total + floatval($picinfo["price"]);
+						}
+					}
+				}
+			}
+			$obj["status"] 	= "1";
+			$obj["total"] 	= $tmp_total;
+		}
+		$this->ajaxReturn($obj);
+	}
+	public function CheckStyledOrderInfo(){
+		$this->isUserLogin();
+		$maddress = D('Home/UserAddress');
+		$USER = session('WZY_USER');
+		//获取地址列表
+		$addressList = $maddress->queryByList($USER['userId']);
+		$this->assign("addressList", $addressList);
+		
+		$m = D('Home/Areas');
+		$tmp_obj["parentId"] = "0";
+		$this->assign('areaList', $m->getAreaListsByParentId($tmp_obj));
+		//支付方式
+		$pm = D('Home/Payments');
+		$payments = $pm->getList();
+		$this->assign("payments", $payments);
+		
+		$styledorder = D('Home/StyledOrder');
+		$styled = D('Home/Styled');
+		$picture = D('Home/Picture');
+		
+		$orderno = I("orderno");
+		$obj["orderno"] = $orderno;
+		$orderinfo = $styledorder->getStyledOrderByOrderNo($obj);
+		$this->assign("orderinfo", $orderinfo);
+		
+		$obj2["styledId"] = $orderinfo["styledid"];
+		$styledinfo = $styled->get($obj2);
+		$this->assign("styledinfo", $styledinfo);
+		
+		
+		
+		if($orderinfo["front2"] != null && $orderinfo["front2"] != ""){
+			$objt["pictureid"] = $orderinfo["front2"];
+			$this->assign("frontpicinfo",$picture->get($objt));
+		}
+		if($orderinfo["back2"] != null && $orderinfo["back2"] != ""){
+			$objt["pictureid"] = $orderinfo["back2"];
+			$this->assign("backpicinfo",$picture->get($objt));
+		}
+		if($orderinfo["left2"] != null && $orderinfo["left2"] != ""){
+			$objt["pictureid"] = $orderinfo["left2"];
+			$this->assign("leftpicinfo",$picture->get($objt));
+		}
+		if($orderinfo["right2"] != null && $orderinfo["right2"] != ""){
+			$objt["pictureid"] = $orderinfo["right2"];
+			$this->assign("rightpicinfo",$picture->get($objt));
+		}
+		if($orderinfo["tietupicids"] != null && $orderinfo["tietupicids"] != ""){
+			$obj4["pictureids"] = $orderinfo["tietupicids"];
+			$this->assign("tietupicinfos", $picture->getListByIds($obj4));
+		}
+		$this->display('wzyskin/check_styledorder');
+	}
+	
+	public function SubmitStyledOrder(){
+		$styledid 				= $_POST['hidden_styledid'];
+		$styledamt 				= $_POST['hidden_styledamt'];
+		$pictureamt 			= $_POST['hidden_pictureamt'];
+		$totalamt 				= $_POST['hidden_totalamt'];
+		$background_front 		= $_POST['hidden_background_front'];
+		$background_front_id 	= $_POST['hidden_background_front_id'];
+		$background_front_screen= $_POST['hidden_background_front_screen'];
+		$background_back 		= $_POST['hidden_background_back'];
+		$background_back_id 	= $_POST['hidden_background_back_id'];
+		$background_back_screen = $_POST['hidden_background_back_screen'];
+		$background_left 		= $_POST['hidden_background_left'];
+		$background_left_id 	= $_POST['hidden_background_left_id'];
+		$background_left_screen = $_POST['hidden_background_left_screen'];
+		$background_right 		= $_POST['hidden_background_right'];
+		$background_right_id 	= $_POST['hidden_background_right_id'];
+		$background_right_screen= $_POST['hidden_background_right_screen'];
+		$tietu_usepicids 		= $_POST['hidden_tietu_usepicids'];
+		
+		$styled_bll = D('Home/Styled');
+		$obj["styledId"] = $styledid;
+		$styledinfo = $styled_bll->get($obj);
+		
+		
+		
+		$tmp_orderno 							= $this->getRandOnlyId().time();
+		$orderinfo["orderno"] 					= $tmp_orderno;
+		$orderinfo["styledid"]					= $styledinfo["styledid"];
+		$orderinfo["catid"]						= $styledinfo["catid"];
+		$orderinfo["sname"]						= $styledinfo["sname"];
+		$orderinfo["realsex"]					= $styledinfo["realsex"];
+		$orderinfo["stype"]						= $styledinfo["stype"];
+		$orderinfo["stylesize"]					= $styledinfo["stylesize"];
+		$orderinfo["fabric"]					= $styledinfo["fabric"];
+		
+		$orderinfo["styledamt"]					= $styledamt;
+		$orderinfo["pictureamt"]				= $pictureamt;
+		$orderinfo["totalamt"]					= $totalamt;
+		$orderinfo["payamt"]					= $totalamt;
+		
+		$orderinfo["filepath"]					= $styledinfo["filepath"];
+		$orderinfo["filefolder"]				= $styledinfo["filefolder"];
+		$orderinfo["viewpic"]					= $styledinfo["viewpic"];
+		$orderinfo["objname"]					= $styledinfo["objname"];
+		$orderinfo["txtname"]					= $styledinfo["txtname"];
+		$orderinfo["mtlname"]					= $styledinfo["mtlname"];
+		$orderinfo["clothname"]					= $styledinfo["clothname"];
+		$orderinfo["front"]						= $styledinfo["front"];
+		$orderinfo["back"]						= $styledinfo["back"];
+		$orderinfo["left"]						= $styledinfo["left"];
+		$orderinfo["right"]						= $styledinfo["right"];
+		
+		$orderinfo["front1"]					= $background_front;
+		$orderinfo["back1"]						= $background_back;
+		$orderinfo["left1"]						= $background_left;
+		$orderinfo["right1"]					= $background_right;
+		
+		$orderinfo["front2"]					= $background_front_id;
+		$orderinfo["back2"]						= $background_back_id;
+		$orderinfo["left2"]						= $background_left_id;
+		$orderinfo["right2"]					= $background_right_id;
+		
+		$orderinfo["front3"]					= $background_front_screen;
+		$orderinfo["back3"]						= $background_back_screen;
+		$orderinfo["left3"]						= $background_left_screen;
+		$orderinfo["right3"]					= $background_right_screen;
+		
+			
+		$orderinfo["tietupicids"]				= $tietu_usepicids;
+		$orderinfo["ownerid"]					= $styledinfo["ownerid"];
+		$USER = session('WZY_USER');
+		$orderinfo["userId"]					= $USER["userId"];
+		$orderinfo["postime"]					= time();
+		
+		M("styled_order")->add($orderinfo);
+		$retobj["status"] 		= "1";
+		$retobj["orderno"] 		= $tmp_orderno;
+		$this->ajaxReturn($retobj);
+	}
+	public function SubmitStyledOrder2(){
+		$this->isUserLogin();
+		$USER = session('WZY_USER');
+		$styledorder = D('Home/StyledOrder');
+		$orderno = I("orderno");
+		$consigneeId = I("consigneeId");
+		$obj["orderno"] = $orderno;
+		$orderinfo = $styledorder->getStyledOrderByOrderNo($obj);
+		$useraddress = D("Home/UserAddress");
+		$addressInfo = $useraddress->getAddressDetails($consigneeId);
+		$data = array();
+		$data["orderFlag"] = 1;
+		$data["totalMoney"] = $orderinfo["totalamt"];
+		$data["deliverMoney"] = "0";
+		$data["payType"] = "0";
+		$data["deliverType"] = "0";
+		$data["userName"] = $addressInfo["userName"];
+		$data["areaId1"] = $addressInfo["areaId1"];
+		$data["areaId2"] = $addressInfo["areaId2"];
+		$data["areaId3"] = $addressInfo["areaId3"];
+		$data["userAddress"] = $addressInfo["paddress"]." ".$addressInfo["address"];
+		$data["userTel"] = $addressInfo["userTel"];
+		$data["userPhone"] = $addressInfo["userPhone"];
+		$data['orderScore'] = round($data["totalMoney"] + $data["deliverMoney"], 0);
+		$data["isInvoice"] = "1";
+		$data["orderRemarks"] = I("remarks");
+		$data["requireTime"] = I("requireTime");
+		$data["invoiceClient"] = I("invoiceClient");
+		$data["isAppraises"] = 0;
+		$data["needPay"] = $shopgoods["totalMoney"] + $deliverMoney;
+		$data["orderStatus"] = -2;
+		$data["orderunique"] = $orderunique;
+		$data["isPay"] = 0;
+		$morders = M('styled_order');
+		$morders->where("orderno='" . $orderno. "'")->save($data);
+		
+		$data = array();
+		$data["orderId"] = $orderinfo["orderid"];
+		$data["logContent"] = "下单成功";
+		$data["logUserId"] = (int)$USER['userId'];
+		$data["logType"] = 0;
+		$data["logTime"] = date('Y-m-d H:i:s');
+		$mlogo = M('log_styledorder');
+		$mlogo->add($data);
+		
+		$this->redirect("Payments/styledPay",array("orderno"=>$orderinfo["orderno"]));
+	}
+	
+	public function ShareStyled(){
+		$styledid 				= $_POST['hidden1_styledid'];
+		$background_front 		= $_POST['hidden1_background_front'];
+		$background_front_id 	= $_POST['hidden1_background_front_id'];
+		$background_front_screen= $_POST['hidden1_background_front_screen'];
+		$background_back 		= $_POST['hidden1_background_back'];
+		$background_back_id 	= $_POST['hidden1_background_back_id'];
+		$background_back_screen = $_POST['hidden1_background_back_screen'];
+		$background_left 		= $_POST['hidden1_background_left'];
+		$background_left_id 	= $_POST['hidden1_background_left_id'];
+		$background_left_screen = $_POST['hidden1_background_left_screen'];
+		$background_right 		= $_POST['hidden1_background_right'];
+		$background_right_id 	= $_POST['hidden1_background_right_id'];
+		$background_right_screen= $_POST['hidden1_background_right_screen'];
+		$tietu_usepicids 		= $_POST['hidden1_tietu_usepicids'];
+		$share_snapshot 		= $_POST['hidden1_share_snapshot'];
+	
+		$styled_bll = D('Home/Styled');
+		$obj["styledId"] = $styledid;
+		$styledinfo = $styled_bll->get($obj);
+	
+	
+		$tmp_shareno 							= $this->getRandOnlyId().time();
+		$orderinfo["shareno"] 					= $tmp_shareno;
+		$orderinfo["styledid"]					= $styledinfo["styledid"];
+		$orderinfo["catid"]						= $styledinfo["catid"];
+		$orderinfo["sname"]						= $styledinfo["sname"];
+		$orderinfo["realsex"]					= $styledinfo["realsex"];
+		$orderinfo["stype"]						= $styledinfo["stype"];
+		$orderinfo["stylesize"]					= $styledinfo["stylesize"];
+		$orderinfo["fabric"]					= $styledinfo["fabric"];
+		$orderinfo["filepath"]					= $styledinfo["filepath"];
+		$orderinfo["filefolder"]				= $styledinfo["filefolder"];
+		$orderinfo["viewpic"]					= $styledinfo["viewpic"];
+		$orderinfo["objname"]					= $styledinfo["objname"];
+		$orderinfo["txtname"]					= $styledinfo["txtname"];
+		$orderinfo["mtlname"]					= $styledinfo["mtlname"];
+		$orderinfo["clothname"]					= $styledinfo["clothname"];
+		$orderinfo["front"]						= $styledinfo["front"];
+		$orderinfo["back"]						= $styledinfo["back"];
+		$orderinfo["left"]						= $styledinfo["left"];
+		$orderinfo["right"]						= $styledinfo["right"];
+	
+		$orderinfo["front1"]					= $background_front;
+		$orderinfo["back1"]						= $background_back;
+		$orderinfo["left1"]						= $background_left;
+		$orderinfo["right1"]					= $background_right;
+	
+		$orderinfo["front2"]					= $background_front_id;
+		$orderinfo["back2"]						= $background_back_id;
+		$orderinfo["left2"]						= $background_left_id;
+		$orderinfo["right2"]					= $background_right_id;
+	
+		$orderinfo["front3"]					= $background_front_screen;
+		$orderinfo["back3"]						= $background_back_screen;
+		$orderinfo["left3"]						= $background_left_screen;
+		$orderinfo["right3"]					= $background_right_screen;
+	
+			
+		$orderinfo["tietupicids"]				= $tietu_usepicids;
+		
+		if($share_snapshot!= null && $share_snapshot!= ""){
+			$array_share_snapshot = explode(",", $share_snapshot);
+			if(count($array_share_snapshot) > 0){
+				$orderinfo["snapshot1"] = $array_share_snapshot[0];
+			}
+			if(count($array_share_snapshot) > 1){
+				$orderinfo["snapshot2"] = $array_share_snapshot[1];
+			}
+		}
+		$orderinfo["ownerid"]					= $styledinfo["ownerid"];
+		$USER = session('WZY_USER');
+		if($USER!=NULL && count($USER) > 0){
+			$orderinfo["userid"]					= $USER["userId"];
+		}else{
+			$orderinfo["userid"]					= $USER["userId"];
+		}
+		$orderinfo["postime"]					= time();
+	
+		M("styled_share")->add($orderinfo);
+		$retobj["status"] 		= "1";
+		$retobj["shareno"] 		= $tmp_shareno;
+		$this->ajaxReturn($retobj);
+	}
+	
+	public function diyshare(){
+		$shareno = I("shareno");
+		$shareinfo = M("styled_share")->where("shareno='".$shareno . "'")->find();
+		$this->assign('shareinfo',$shareinfo);
+		$this->display("wzyskin/diyshare");
+	}
+	
+	public function showdiy(){
+		$shareno = I("shareno");
+		$shareinfo = M("styled_share")->where("shareno='".$shareno . "'")->find();
+		$this->assign('shareinfo',$shareinfo);
+		if($shareinfo != null && $shareinfo["isshare"] == "1"){
+			$this->assign('ishare', "1");
+		}else{
+			$this->assign('ishare', "0");
+		}
+		
+		$scm = D("Home/ShareComments");
+		$obj["shareid"] = $shareinfo["shareid"];
+		$commentlist = $scm->queryTopStyledComment($obj);
+		for($s=0;$s<count($commentlist);$s++){
+			if($commentlist[$s]["pics"]!=""){
+				$commentlist[$s]["piclist"] = explode(",",$commentlist[$s]["pics"]);
+			}
+				
+			$obj["parentid"] = $commentlist[$s]["commentid"];
+			$commentlist[$s]["childrens"] = $scm->queryChildStyledComment($obj);
+		}
+		$this->assign('comments', $commentlist);
+		
+		$this->display("wzyskin/showdiy");
+	}
+	
+	public function showdiyorder(){
+		$orderid = I("orderid");
+		$orderinfo = M("styled_order")->where("orderid='".$orderid . "'")->find();
+		$this->assign('orderinfo', $orderinfo);	
+		$this->display("wzyskin/showdiyorder");
+	}
+	public function getstyledorderinfo(){
+		$orderid = I("orderid");
+		$orderinfo = M("styled_order")->where("orderid='".$orderid . "'")->find();
+		$this->ajaxReturn($orderinfo);
+	}
+	
+	/**
+	 * 新增/修改评论
+	 */
+	public function newsharecomment(){
+		$this->isUserAjaxLogin();
+		$USER = session('WZY_USER');
+		$m = D('Home/ShareComments');
+		$rs = array();
+		if((int)I('id', 0)>0){
+			$rs = $m->edit();
+		}else{
+			$obj["shareid"] = I("shareid", "0");
+			$obj["userid"] = $USER["userId"];
+			$obj["ip"] = $this->getIP();
+			$rs = $m->insert($obj);
+		}
+		$this->ajaxReturn($rs);
+	}
+	public function shareuseful(){
+		$obj["commentid"] = I("commentid");
+		$m = D('Home/ShareComments');
+		$m->useful($obj);
+		$retobj["status"] 		= "1";
+		$this->ajaxReturn($retobj);
+	}
+	
+	
+	public function sharereportful(){
+		$obj["commentid"] = I("commentid");
+		$m = D('Home/ShareComments');
+		$m->reportful($obj);
+		$retobj["status"] 		= "1";
+		$this->ajaxReturn($retobj);
+	}
+	
+	public function sharereplycnt(){
+		$obj["commentid"] = I("commentid");
+		$m = D('Home/ShareComments');
+		$m->replycnt($obj);
+		$retobj["status"] 		= "1";
+		$this->ajaxReturn($retobj);
+	}
+	
+	public function getsharestyledinfo(){
+		$shareno = I("shareno");
+		$shareinfo = M("styled_share")->where("shareno='".$shareno . "'")->find();
+		$this->ajaxReturn($shareinfo);
+	}
+	
+	public function styleduseful(){
+		$obj["commentid"] = I("commentid");
+		$m = D('Home/StyledComments');
+		$m->useful($obj);
+		$retobj["status"] 		= "1";
+		$this->ajaxReturn($retobj);
+	}
+	
+	
+	public function styledreportful(){
+		$obj["commentid"] = I("commentid");
+		$m = D('Home/StyledComments');
+		$m->reportful($obj);
+		$retobj["status"] 		= "1";
+		$this->ajaxReturn($retobj);
+	}
+	
+	public function styledreplycnt(){
+		$obj["commentid"] = I("commentid");
+		$m = D('Home/StyledComments');
+		$m->replycnt($obj);
+		$retobj["status"] 		= "1";
+		$this->ajaxReturn($retobj);
+	}
+	public function subreply(){
+		$obj["commentid"] = I("commentid");
+		
+		$this->isUserAjaxLogin();
+		$USER = session('WZY_USER');
+		$m = D('Home/StyledComments');
+		$rs = array();
+		$obj["styledid"] = I("styledid", "0");
+		$obj["orderid"] = I("orderid", "0");
+		$obj["userid"] = $USER["userId"];
+		$obj["ip"] = $this->getIP();
+		$rs = $m->insert($obj);
+		$this->ajaxReturn($rs);
+	}
+	
+	public function gettypes(){
+		$m = D('Home/StyledTypes');
+		$rs = $m->queryByListBySex();
+		$this->ajaxReturn($rs);
+	}
+	
+	public function getsizes(){
+		$m = D('Home/StyledSizes');
+		$rs = $m->queryByList();
+		$this->ajaxReturn($rs);
+	}
+	
+	public function getfabrics(){
+		$m = D('Home/StyledFabric');
+		$rs = $m->queryByList();
+		$this->ajaxReturn($rs);
+	}
+	
+	public function sharetoshow(){
+		$tmp_shareno 		= I("shareno");
+		$tmp_sharenote 		= I("sharenote");
+		$vo["isshare"] 		= "1";
+		$vo["sharenote"] 	= $tmp_sharenote;
+		M("styled_share")->where("shareno='" . $tmp_shareno . "' and isshare=0")->save($vo);
+		$rd = array('status'=>1);
+		$this->ajaxReturn($rd);
+	}
+	
+	function getIP() {
+		if (getenv('HTTP_CLIENT_IP')) {
+			$ip = getenv('HTTP_CLIENT_IP');
+		}
+		elseif (getenv('HTTP_X_FORWARDED_FOR')) {
+			$ip = getenv('HTTP_X_FORWARDED_FOR');
+		}
+		elseif (getenv('HTTP_X_FORWARDED')) {
+			$ip = getenv('HTTP_X_FORWARDED');
+		}
+		elseif (getenv('HTTP_FORWARDED_FOR')) {
+			$ip = getenv('HTTP_FORWARDED_FOR');
+		}
+		elseif (getenv('HTTP_FORWARDED')) {
+			$ip = getenv('HTTP_FORWARDED');
+		}
+		else {
+			$ip = $_SERVER['REMOTE_ADDR'];
+		}
+		return $ip;
+	}
+}
